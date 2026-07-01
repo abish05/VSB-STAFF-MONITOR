@@ -1,0 +1,115 @@
+version: "3.9"
+
+networks:
+  codepulse_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_files:
+
+services:
+  # ─── FastAPI Backend ──────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codepulse_backend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    networks:
+      - codepulse_network
+    volumes:
+      - ./backend:/app
+      - static_files:/app/static
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+      --loop asyncio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── Celery Worker ────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codepulse_worker
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - redis
+      - backend
+    networks:
+      - codepulse_network
+    volumes:
+      - ./backend:/app
+    command: >
+      celery -A app.tasks.celery_app.celery_app worker
+      --loglevel=info
+      --concurrency=8
+      -Q default,sync,reports
+
+  # ─── Celery Beat Scheduler ───────────────────────────────────────────────────
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codepulse_beat
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - redis
+      - worker
+    networks:
+      - codepulse_network
+    volumes:
+      - ./backend:/app
+    command: >
+      celery -A app.tasks.celery_app.celery_app beat
+      --loglevel=info
+      --scheduler celery.beat:PersistentScheduler
+
+  # ─── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: codepulse_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - codepulse_network
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Nginx Reverse Proxy ─────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: codepulse_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    networks:
+      - codepulse_network
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_files:/var/www/static:ro

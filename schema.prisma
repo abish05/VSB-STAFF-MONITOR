@@ -1,0 +1,262 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  permissions Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+
+  @@map("roles")
+}
+
+model Department {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  code      String   @unique
+  hodId     String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]   @relation("UserDepartment")
+  hod       User?    @relation("DepartmentHOD", fields: [hodId], references: [id])
+
+  @@map("departments")
+}
+
+model User {
+  id              String            @id @default(uuid()) @db.Uuid
+  email           String            @unique
+  passwordHash    String            @map("password_hash")
+  fullName        String            @map("full_name")
+  roleId          String            @db.Uuid @map("role_id")
+  departmentId    String?           @db.Uuid @map("department_id")
+  isActive        Boolean           @default(true) @map("is_active")
+  isVerified      Boolean           @default(false) @map("is_verified")
+  avatarUrl       String?           @map("avatar_url")
+  phone           String?
+  lastLoginAt     DateTime?         @map("last_login_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  
+  role            Role              @relation(fields: [roleId], references: [id])
+  department      Department?       @relation("UserDepartment", fields: [departmentId], references: [id])
+  hodDepartment   Department[]      @relation("DepartmentHOD")
+  studentProfile  StudentProfile?
+  staffProfile    StaffProfile?
+  leetcodeStats   LeetCodeStats?
+  githubStats     GitHubStats?
+  performanceScore PerformanceScore?
+  notifications   Notification[]
+  activityLogs    ActivityLog[]
+  userAchievements UserAchievement[]
+  syncLogs        SyncLog[]
+  sessions        Session[]
+
+  @@map("users")
+}
+
+model StudentProfile {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @db.Uuid @map("user_id")
+  regNo            String   @unique @map("reg_no")
+  year             Int
+  section          String?
+  leetcodeUsername String?  @map("leetcode_username")
+  githubUsername   String?  @map("github_username")
+  mentorId         String?  @db.Uuid @map("mentor_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mentor           StaffProfile? @relation(fields: [mentorId], references: [id])
+
+  @@map("student_profiles")
+}
+
+model StaffProfile {
+  id               String           @id @default(uuid()) @db.Uuid
+  userId           String           @unique @db.Uuid @map("user_id")
+  employeeId       String           @unique @map("employee_id")
+  designation      String?
+  leetcodeUsername String?          @map("leetcode_username")
+  githubUsername   String?          @map("github_username")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mentees          StudentProfile[]
+
+  @@map("staff_profiles")
+}
+
+model LeetCodeStats {
+  id                 String            @id @default(uuid()) @db.Uuid
+  userId             String            @unique @db.Uuid @map("user_id")
+  totalSolved        Int               @default(0) @map("total_solved")
+  easySolved         Int               @default(0) @map("easy_solved")
+  mediumSolved       Int               @default(0) @map("medium_solved")
+  hardSolved         Int               @default(0) @map("hard_solved")
+  acceptanceRate     Float             @default(0.0) @map("acceptance_rate")
+  contestRating      Float             @default(0.0) @map("contest_rating")
+  contestGlobalRank  Int               @default(0) @map("contest_global_rank")
+  contestsAttended   Int               @default(0) @map("contests_attended")
+  currentStreak      Int               @default(0) @map("current_streak")
+  longestStreak      Int               @default(0) @map("longest_streak")
+  reputation         Int               @default(0)
+  submissionCalendar String?           @map("submission_calendar")
+  lastSynced         DateTime?         @map("last_synced")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  history            LeetCodeHistory[]
+
+  @@map("leetcode_stats")
+}
+
+model LeetCodeHistory {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @db.Uuid @map("user_id")
+  statsId            String   @db.Uuid @map("stats_id")
+  snapshotDate       DateTime @map("snapshot_date")
+  problemsSolved     Int      @default(0) @map("problems_solved")
+  ratingChange       Float    @default(0.0) @map("rating_change")
+  totalSolvedAtDate  Int      @default(0) @map("total_solved_at_date")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  stats              LeetCodeStats @relation(fields: [statsId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, snapshotDate], name: "uq_lc_history_user_date")
+  @@map("leetcode_history")
+}
+
+model GitHubStats {
+  id                       String           @id @default(uuid()) @db.Uuid
+  userId                   String           @unique @db.Uuid @map("user_id")
+  publicRepos              Int              @default(0) @map("public_repos")
+  totalCommits             Int              @default(0) @map("total_commits")
+  pullRequests             Int              @default(0) @map("pull_requests")
+  issuesOpened             Int              @default(0) @map("issues_opened")
+  starsReceived            Int              @default(0) @map("stars_received")
+  forks                    Int              @default(0)
+  followers                Int              @default(0)
+  following                Int              @default(0)
+  contributionStreak       Int              @default(0) @map("contribution_streak")
+  longestContributionStreak Int             @default(0) @map("longest_contribution_streak")
+  topLanguages             String?          @map("top_languages")
+  contributionCalendar     String?          @map("contribution_calendar")
+  lastSynced               DateTime?        @map("last_synced")
+  createdAt                DateTime         @default(now()) @map("created_at")
+  updatedAt                DateTime         @updatedAt @map("updated_at")
+
+  user                     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity                 GitHubActivity[]
+
+  @@map("github_stats")
+}
+
+model GitHubActivity {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid @map("user_id")
+  statsId      String   @db.Uuid @map("stats_id")
+  activityDate DateTime @map("activity_date")
+  commits      Int      @default(0)
+  pullRequests Int      @default(0) @map("pull_requests")
+  issues       Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  stats        GitHubStats @relation(fields: [statsId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityDate], name: "uq_gh_activity_user_date")
+  @@map("github_activity")
+}
+
+model PerformanceScore {
+  id                      String   @id @default(uuid()) @db.Uuid
+  userId                  String   @unique @db.Uuid @map("user_id")
+  leetcodeScore           Float    @default(0.0) @map("leetcode_score")
+  githubScore             Float    @default(0.0) @map("github_score")
+  totalScore              Float    @default(0.0) @map("total_score")
+  placementScore          Float    @default(0.0) @map("placement_score")
+  classification          String   @default("Needs Improvement")
+  placementClassification String   @default("Needs Improvement") @map("placement_classification")
+  calculatedAt            DateTime @default(now()) @map("calculated_at")
+
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("performance_scores")
+}
+
+model ActivityLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String?  @db.Uuid @map("user_id")
+  action       String
+  resourceType String?  @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  metadata     Json?
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("activity_logs")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid @map("user_id")
+  token     String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid @map("user_id")
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model UserAchievement {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid @map("user_id")
+  achievementId String   @db.Uuid @map("achievement_id")
+  earnedAt      DateTime @default(now()) @map("earned_at")
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_achievements")
+}
+
+model SyncLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid @map("user_id")
+  platform     String
+  status       String
+  errorMessage String?  @map("error_message")
+  durationMs   Int      @map("duration_ms")
+  syncedAt     DateTime @default(now()) @map("synced_at")
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sync_logs")
+}
