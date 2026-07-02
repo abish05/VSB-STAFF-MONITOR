@@ -43,7 +43,8 @@ class Settings(BaseSettings):
             # Neon only requires ssl=require for asyncpg.
             if "?" in v:
                 v = v.split("?")[0]
-            v = f"{v}?ssl=require"
+            if "localhost" not in v and "127.0.0.1" not in v:
+                v = f"{v}?ssl=require"
         return v
 
     DB_POOL_SIZE: int = 20
