@@ -17,7 +17,7 @@ services:
       dockerfile: Dockerfile
     container_name: codepulse_backend
     restart: unless-stopped
-    env_file: .env
+    env_file: backend/.env
     environment:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -50,7 +50,7 @@ services:
       dockerfile: Dockerfile
     container_name: codepulse_worker
     restart: unless-stopped
-    env_file: .env
+    env_file: backend/.env
     environment:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -75,7 +75,7 @@ services:
       dockerfile: Dockerfile
     container_name: codepulse_beat
     restart: unless-stopped
-    env_file: .env
+    env_file: backend/.env
     environment:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
