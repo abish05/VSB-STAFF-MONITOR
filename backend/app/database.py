@@ -28,7 +28,9 @@ def _make_engine():
     kwargs: dict[str, Any] = {
         "echo": settings.DB_ECHO,
         "future": True,
-        "prepared_statement_cache_size": 0,
+        "connect_args": {
+            "prepared_statement_cache_size": 0,
+        },
     }
 
     # Use NullPool for test environments (avoids connection pool issues)
